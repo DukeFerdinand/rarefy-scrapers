@@ -30,11 +30,11 @@ module.exports = {
       path : process.env.DESTINATION,
       'pre-deploy-local': '',
       'post-deploy' :
-          '/root/.nvm/versions/node/v18.12.1/bin/npm install '+
-          '&& /root/.nvm/versions/node/v18.12.1/bin/npx prisma generate '+
+          'npm install '+
+          '&& npx prisma generate '+
           '&& npm run build '+
           '&& pm2 reload ecosystem.config.js --env production',
-      'pre-setup': 'ls ' + process.env.DESTINATION
+      'pre-setup': ''
     }
   }
 };
