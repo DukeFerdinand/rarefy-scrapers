@@ -7,6 +7,7 @@
 		"start": "node src/index.ts",
 		"dev": "nodemon",
 		"build": "tsc",
+		"deploy": "npx pm2 deploy production",
 		"test": "echo \"Error: no test specified\" && exit 1"
 	},
 	"author": "",
