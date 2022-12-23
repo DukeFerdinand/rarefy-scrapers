@@ -4,11 +4,11 @@ import {config} from 'dotenv';
 
 import {logger} from "./logger";
 import {setupWorkers} from "./workers/setup";
+import {jobQueue} from "./queue";
 
 config();
 
 if (process.env.NODE_ENV !== 'production') {
-	// eslint-disable-next-line @typescript-eslint/no-var-requires
 	import('dotenv').then((d) => d.config());
 }
 
@@ -67,10 +67,15 @@ app.get('/health', (req, res) => {
 });
 
 app.post('/buyee', async function (req, res) {
-	res.status(200).send('OK');
+	await jobQueue.createJob({}).save()
+	await jobQueue.createJob({}).save()
+	await jobQueue.createJob({}).save()
+
+	res.status(200).send('Buyee job(s) enqueued! :)');
 });
 
-app.listen(3000, () => {
-	console.log('Server listening on port 3000');
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+	logger.info(`Server listening on port ${port}`);
 	setupWorkers()
 });
