@@ -4,7 +4,8 @@ import {config} from 'dotenv';
 
 import {logger} from "./logger";
 import {setupWorkers} from "./workers/setup";
-import {jobQueue} from "./queue";
+import {jobCreator} from "./queue";
+import {getSearchTerms} from "./db/getTerms";
 
 config();
 
@@ -18,7 +19,7 @@ const prisma = new PrismaClient();
 app.use(express.json());
 
 app.use(async (req, res, next) => {
-	await next()
+	next()
 });
 
 app.use(async (req, res, next) => {
@@ -72,11 +73,21 @@ app.get('/health', (req, res) => {
 });
 
 app.post('/buyee', async function (req, res) {
-	await jobQueue.createJob({}).save()
-	await jobQueue.createJob({}).save()
-	await jobQueue.createJob({}).save()
+	const terms = await getSearchTerms()
+	if (terms.length) {
+		const job = jobCreator.createJob({someData: 'someData'});
+		job.progress(() => {
+			logger.info(`Job ${job.id} progress: ${job.progress}%`);
+		})
 
-	res.status(200).send('Buyee job(s) enqueued! :)');
+		await job.save();
+		res.status(200).send('Buyee job(s) enqueued! :)');
+	} else {
+		res.status(200).send('Nothing to do! :(');
+	}
+
+
+
 });
 
 const port = process.env.PORT || 3000;

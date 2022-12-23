@@ -2,6 +2,6 @@
   "watch": ["src"],
   "ignore": ["src/**/*.test.ts"],
   "ext": "ts,mjs,js,json,graphql",
-  "exec": "npx tsc && node ./dist/index.js",
+  "exec": "npx tsc -b --verbose && node ./dist/index.js",
   "legacyWatch": true
 }

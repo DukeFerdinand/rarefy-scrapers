@@ -1,6 +1,9 @@
 node_modules
 # Keep environment variables out of version control
 .env
+.env.deploy
 dist
 .DS_Store
+volumes/data/*
+!volumes/data/.gitkeep
 

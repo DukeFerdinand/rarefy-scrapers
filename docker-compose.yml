@@ -1,0 +1,8 @@
+version: '3'
+services:
+  rarefy-queue:
+    image: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./volumes/data:/data
