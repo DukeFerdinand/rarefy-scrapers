@@ -26,7 +26,7 @@ app.use(async (req, res, next) => {
 	// get IP from request
 	const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
 
-	if (req.url !== '/health' && req.url !== '/') {
+	if (req.url === '/health' || req.url === '/') {
 		logger.info(`${ip} ${req.method} - ${req.url}`);
 		return next()
 	}
