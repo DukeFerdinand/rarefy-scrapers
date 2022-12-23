@@ -4,7 +4,7 @@ import {config} from 'dotenv';
 
 import {logger} from "./logger";
 import {setupWorkers} from "./workers/setup";
-import {jobCreator} from "./queue";
+import {BuyeeJob, jobCreator, JobType} from "./queue";
 import {getSearchTerms} from "./db/getTerms";
 
 config();
@@ -74,16 +74,19 @@ app.get('/health', (req, res) => {
 
 app.post('/buyee', async function (req, res) {
 	const terms = await getSearchTerms()
-	if (terms.length) {
-		const job = jobCreator.createJob({someData: 'someData'});
-		job.progress(() => {
-			logger.info(`Job ${job.id} progress: ${job.progress}%`);
+	if (terms.length !== 0) {
+		const job = jobCreator.createJob<BuyeeJob>({
+			jobType: JobType.BUYEE,
+			terms
+		});
+		job.on("progress", (progress) => {
+			logger.info(`Progress: ${progress}% for job ${job.id}`);
 		})
 
 		await job.save();
 		res.status(200).send('Buyee job(s) enqueued! :)');
 	} else {
-		res.status(200).send('Nothing to do! :(');
+		res.status(200).send('No terms found to scrape :(');
 	}
 
 
