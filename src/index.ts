@@ -22,13 +22,14 @@ app.use(async (req, res, next) => {
 });
 
 app.use(async (req, res, next) => {
-	if (req.url !== '/health' && req.url !== '/') {
-		return next()
-	}
-
 	const token = req.headers.authorization?.split(' ')[1];
 	// get IP from request
 	const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+
+	if (req.url !== '/health' && req.url !== '/') {
+		logger.info(`${ip} ${req.method} - ${req.url}`);
+		return next()
+	}
 
 
 	if (!token) {
