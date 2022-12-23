@@ -29,7 +29,11 @@ module.exports = {
       repo : process.env.GIT_REPO,
       path : process.env.DESTINATION,
       'pre-deploy-local': '',
-      'post-deploy' : 'npm install && npx prisma generate && npm run build && pm2 reload ecosystem.config.js --env production',
+      'post-deploy' :
+          '/root/.nvm/versions/node/v18.12.1/bin/npm install '+
+          '&& /root/.nvm/versions/node/v18.12.1/bin/npx prisma generate '+
+          '&& npm run build '+
+          '&& pm2 reload ecosystem.config.js --env production',
       'pre-setup': 'ls ' + process.env.DESTINATION
     }
   }
