@@ -27,7 +27,7 @@ app.use(async (req, res, next) => {
 	const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
 
 
-	if (!token) {
+	if (!token && req.url !== '/health' && req.url !== '/') {
 		logger.info(`${ip} ${req.method} - ${req.url} with NO TOKEN`);
 
 		return res.status(401).send('Unauthorized');
