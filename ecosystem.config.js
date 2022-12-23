@@ -28,12 +28,13 @@ module.exports = {
       ref  : 'origin/main',
       repo : process.env.GIT_REPO,
       path : process.env.DESTINATION,
-      'pre-deploy-local': '',
+      'pre-deploy-local': '' +
+          'scp -r .env.deploy ' + process.env.SSH_USER + '@' + process.env.SSH_HOST + ':' + process.env.DESTINATION + '/current/.env.deploy',
       'post-deploy' :
           'npm install '+
           '&& npx prisma generate '+
           '&& npm run build '+
-          '&& pm2 reload ecosystem.config.js --env production',
+          '&& pm2 reload ecosystem.config.js --env production --name scrapers',
       'pre-setup': ''
     }
   }
