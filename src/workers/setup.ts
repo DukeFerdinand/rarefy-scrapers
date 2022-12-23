@@ -1,9 +1,9 @@
 import {Worker} from "worker_threads";
-import {logger} from "../logger/index.js";
+import {logger} from "../logger";
 
 export const setupWorkers = () => {
     logger.info(`Setting up workers`);
-    const worker = new Worker('./workers/buyee.js', {
+    const worker = new Worker(__dirname + '/buyee.js', {
         workerData: {
             id: 1
         }

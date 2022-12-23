@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client'
 import {config} from 'dotenv';
 
 import {logger} from "./logger";
-import {setupWorkers} from "./workers/setup.js";
+import {setupWorkers} from "./workers/setup";
 
 config();
 

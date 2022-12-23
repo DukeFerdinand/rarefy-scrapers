@@ -1,5 +1,5 @@
 import playwright from "playwright-firefox";
-import { logger } from "../logger/index.js";
+import { logger } from "../logger";
 
 const BUYEE_URL = "https://buyee.jp/item/search/query/{{term}}/category/22260";
 
@@ -52,8 +52,9 @@ export default async function handler(req, res) {
 
 		res.status(200).json({ success: true, titles });
 	} catch (err) {
-		res.status(500).json({ statusCode: 500, message: err.message });
-	}
+    // @ts-ignore
+    res.status(500).json({ statusCode: 500, message: err.message });
+  }
 
 	logger.info(`Total scrape time: ${Date.now() - start}ms`);
 }

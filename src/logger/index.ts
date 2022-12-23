@@ -2,8 +2,8 @@ import {createWriteStream} from "pino-logflare";
 import pino from "pino";
 
 const stream = createWriteStream({
-    apiKey: process.env.LOGGER_API_KEY,
-    sourceToken: process.env.LOGGER_API_ID
+    apiKey: process.env.LOGGER_API_KEY!,
+    sourceToken: process.env.LOGGER_API_ID!
 });
 
 export const logger =
