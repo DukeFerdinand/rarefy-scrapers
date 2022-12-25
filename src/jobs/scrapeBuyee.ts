@@ -1,8 +1,8 @@
+import {parentPort} from 'worker_threads'
 import * as cheerio from 'cheerio'
 
 import {logger} from "../logger";
 import {BuyeeJob} from "../queue";
-import {getS3Client} from "../db/s3";
 
 const SEARCH_URL = "https://buyee.jp/item/search/query/{{term}}"
 
@@ -71,14 +71,12 @@ const formatBuyeeUrl = (term: BuyeeJob['terms'][number]) => {
 }
 
 export const scrapeBuyee = async (terms: BuyeeJob['terms']) => {
-    const s3Client = getS3Client();
-    logger.info(`Buyee scraper: scraping ${terms.length} terms`);
+    parentPort?.postMessage(`scraping ${terms.length} terms`)
 
     for (const term of terms) {
-        logger.info(`Buyee scraper: scraping term ${term.query}`);
+        parentPort?.postMessage(`scraping ${term.query}`)
         const searchResultsPage = formatBuyeeUrl(term)
 
-        logger.info(`Buyee scraper: fetching initial cards for term ${term.query}`);
         // Get the HTML of the search results page
         const html = await fetch(searchResultsPage, {
             headers: {
@@ -93,11 +91,11 @@ export const scrapeBuyee = async (terms: BuyeeJob['terms']) => {
 
         // Missing cards means error or no results, TODO: handle no results vs error
         if (items.length === 0) {
-            logger.info(`Buyee scraper: no results for term ${term.query}`);
+            parentPort?.postMessage(`no results for ${term.query}`)
             continue;
         }
 
-        logger.info(`Buyee scraper: found ${items.length} results for term ${term.query}`);
+        parentPort?.postMessage(`found ${items.length} results for term ${term.query}`);
 
         // Loop through the cards, making a request for each one to get the details from the auction page HTML
         const results: BuyeeSearchResult[] = []
@@ -141,25 +139,14 @@ export const scrapeBuyee = async (terms: BuyeeJob['terms']) => {
                 images.push($(el).attr('data-thumb') || '')
             })
 
-            for (const [i, image] of images.entries()) {
-                logger.info(`Buyee scraper: downloading and uploading image ${image}`)
-                // TODO: See if storing to disk is better than keeping potentially large images in memory
-                const imageBuffer = await fetch(image).then(res => res.blob())
-                const imageName = image.split('users/')[1]?.split('/')[1]
+            buyeeDataToSearchResult(itemDetails)
 
-                const key = `buyee/${itemDetails["Auction ID"]}/${imageName}`
-                await s3Client.upload({
-                    Bucket: "rarefy-cdn",
-                    Key: `buyee/${imageName}`,
-                    Body: Buffer.from(await imageBuffer.arrayBuffer()),
-                    ACL: "public-read",
-                }).promise().then(res =>
-                    logger.info(`Buyee scraper: uploaded image ${key}`)
-                ).catch(err => {
-                    logger.error(`Buyee scraper: failed to upload image ${key}`)
-                    logger.error(err)
-                })
-            }
+            // TODO: Save the scraped data to db before sending to queue
+            // await processJobCreator.createJob({
+            //     jobType: JobType.FILE_PROCESS,
+            //     files: images,
+            //     dbID: term.dbID,
+            // })
 
             // TODO: Store images in S3 and return the S3 urls instead to avoid being blocked by buyee
 
@@ -169,8 +156,6 @@ export const scrapeBuyee = async (terms: BuyeeJob['terms']) => {
                 itemDetails,
                 images
             }
-
-            buyeeDataToSearchResult(itemDetails)
         }
     }
 }

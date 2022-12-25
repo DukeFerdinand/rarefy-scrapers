@@ -4,7 +4,7 @@ import {config} from 'dotenv';
 
 import {logger} from "./logger";
 import {setupWorkers} from "./workers/setup";
-import {BuyeeJob, jobCreator, JobType} from "./queue";
+import {BuyeeJob, scrapeJobCreator, ScrapeTarget} from "./queue";
 import {getSearchTerms} from "./db/getTerms";
 
 config();
@@ -75,8 +75,8 @@ app.get('/health', (req, res) => {
 app.post('/buyee', async function (req, res) {
 	const terms = await getSearchTerms()
 	if (terms.length !== 0) {
-		const job = jobCreator.createJob<BuyeeJob>({
-			jobType: JobType.BUYEE,
+		const job = scrapeJobCreator.createJob<BuyeeJob>({
+			jobType: ScrapeTarget.BUYEE,
 			terms
 		});
 		job.on("progress", (progress) => {

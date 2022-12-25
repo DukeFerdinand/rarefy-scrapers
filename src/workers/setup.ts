@@ -4,31 +4,40 @@ import {logger} from "../logger";
 const workerCount = process.env.WORKER_COUNT_PER_JOB || 1
 
 export const setupWorkers = () => {
-    logger.info(`Setting up ${workerCount} worker(s)`);
-    let count = 0
-    while (count < workerCount) {
-        const workerId = count + 1
+    for (const workerType of ['scrape', 'process']) {
+        logger.info(`Setting up ${workerCount} ${workerType} worker(s)`);
+        const fileName = __dirname + '/' + (workerType === 'scrape' ? 'worker.js' : 'process.js')
 
-        // Make sure you use the compiled file name
-        const worker = new Worker(__dirname + '/worker.js', {
-            workerData: {
-                id: workerId
-            },
-        });
+        let count = 0;
+        while (count < workerCount) {
+            const workerId = count + 1
 
-        worker.on('message', (message) => {
-            logger.info(`Received message from worker ${workerId}: ${message}`);
-        });
+            // Make sure you use the compiled file name
+            const worker = new Worker(fileName, {
+                workerData: {
+                    id: workerId
+                }
+            });
 
-        worker.on('error', (error) => {
-            const message = typeof error === "object" ? JSON.stringify(error) : error
-            logger.error(`Received error from worker ${workerId}: ${message}`);
-        });
+            worker.on('message', (message) => {
+                logger.info(`${workerType}/${workerId}: ${message}`);
+            });
 
-        worker.on('exit', (code) => {
-            logger.info(`Worker ${workerId} stopped with exit code ${code}`);
-        });
+            worker.on('error', (error) => {
+                const message = typeof error === "object" ? JSON.stringify(error) : error
+                logger.error(`${workerType}/${workerId}: ${message}`);
+            });
 
-        count += 1
+            worker.on('exit', (code) => {
+                if (code !== 0) {
+                    logger.error(`${workerType}/${workerId}: exited with code ${code}`);
+                } else {
+                    logger.info(`${workerType}/${workerId} stopped with exit code ${code}`);
+                }
+            });
+
+            count += 1
+        }
     }
+
 }
