@@ -68,22 +68,36 @@ app.get('/', (req, res) => {
 	res.send('Hello, World!');
 });
 
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+	await fetch('https://buyee.jp', {
+		headers: {
+			'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36'
+		}
+	}).then(html => html.text()).then(html => {
+		console.log(html);
+		if (html.includes('Site Maintenance')) {
+			return res.status(500).send({
+				error: 'Buyee is down, can\'t scrape'
+			});
+		}
+	})
 	res.send({ status: 'UP' });
 });
 
 app.post('/buyee', async function (req, res) {
 	const terms = await getSearchTerms()
 	if (terms.length !== 0) {
-		const job = scrapeJobCreator.createJob<BuyeeJob>({
-			jobType: ScrapeTarget.BUYEE,
-			terms
-		});
-		job.on("progress", (progress) => {
-			logger.info(`Progress: ${progress}% for job ${job.id}`);
-		})
+		for (const term of terms) {
+			const job = scrapeJobCreator.createJob<BuyeeJob>({
+				jobType: ScrapeTarget.BUYEE,
+				terms: [term]
+			});
+			job.on("progress", (progress) => {
+				logger.info(`Progress: ${progress}% for job ${job.id}`);
+			})
 
-		await job.save();
+			await job.save();
+		}
 		res.status(200).send('Buyee job(s) enqueued! :)');
 	} else {
 		res.status(200).send('No terms found to scrape :(');
