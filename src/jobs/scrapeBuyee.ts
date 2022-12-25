@@ -1,8 +1,8 @@
 import * as cheerio from 'cheerio'
 
-import { SearchResult } from '@prisma/client'
 import {logger} from "../logger";
 import {BuyeeJob} from "../queue";
+import {getS3Client} from "../db/s3";
 
 const SEARCH_URL = "https://buyee.jp/item/search/query/{{term}}"
 
@@ -42,7 +42,7 @@ export interface BuyeeItemDetails {
 }
 
 function buyeeDataToSearchResult(data: BuyeeItemDetails): void {
-    console.log(data)
+    // console.log(data)
     // return {
     //     title: data.title,
     //     price: data.price,
@@ -71,6 +71,7 @@ const formatBuyeeUrl = (term: BuyeeJob['terms'][number]) => {
 }
 
 export const scrapeBuyee = async (terms: BuyeeJob['terms']) => {
+    const s3Client = getS3Client();
     logger.info(`Buyee scraper: scraping ${terms.length} terms`);
 
     for (const term of terms) {
@@ -140,11 +141,24 @@ export const scrapeBuyee = async (terms: BuyeeJob['terms']) => {
                 images.push($(el).attr('data-thumb') || '')
             })
 
-            for (const image of images) {
+            for (const [i, image] of images.entries()) {
                 logger.info(`Buyee scraper: downloading and uploading image ${image}`)
                 // TODO: See if storing to disk is better than keeping potentially large images in memory
-                const imageBuffer = await fetch(image).then(res => res.arrayBuffer())
+                const imageBuffer = await fetch(image).then(res => res.blob())
+                const imageName = image.split('users/')[1]?.split('/')[1]
 
+                const key = `buyee/${itemDetails["Auction ID"]}/${imageName}`
+                await s3Client.upload({
+                    Bucket: "rarefy-cdn",
+                    Key: `buyee/${imageName}`,
+                    Body: Buffer.from(await imageBuffer.arrayBuffer()),
+                    ACL: "public-read",
+                }).promise().then(res =>
+                    logger.info(`Buyee scraper: uploaded image ${key}`)
+                ).catch(err => {
+                    logger.error(`Buyee scraper: failed to upload image ${key}`)
+                    logger.error(err)
+                })
             }
 
             // TODO: Store images in S3 and return the S3 urls instead to avoid being blocked by buyee
