@@ -48,28 +48,32 @@ module.exports = {
   ],
 
   deploy : {
-    scraper_production : {
-      ...sharedConfig,
-      host: process.env.SSH_HOST_SCRAPER,
-      'post-deploy' :
-          'npm install '+
-          '&& npx prisma generate '+
-          '&& npm run build '+
-          '&& pm2 reload ecosystem.config.js --env production --name scraper',
+      scraper_production : {
+          ...sharedConfig,
+          host: process.env.SSH_HOST_SCRAPER,
+          'pre-deploy': 'nvm install 18 && nvm use 18',
+          'post-deploy':
+              'npm install '+
+              '&& npx prisma generate '+
+              '&& npm run build '+
+              '&& pm2 reload ecosystem.config.js --env production --name scraper',
         // copy .env file to the server before starting pm2
-        'pre-deploy-local': '' +
-            'scp -r .env.deploy ' + process.env.SSH_USER + '@' + process.env.SSH_HOST_SCRAPER + ':' + process.env.DESTINATION + '/current/.env.deploy',
-    },
+          'pre-deploy-local': '' +
+              `ssh ${process.env.SSH_USER + '@' + process.env.SSH_HOST_SCRAPER} \'mkdir -p /var/www/rarefy-scrapers/current' && ` +
+                'scp -r .env.deploy ' + process.env.SSH_USER + '@' + process.env.SSH_HOST_SCRAPER + ':' + process.env.DESTINATION + '.env.deploy',
+      },
       processor_production: {
-        ...sharedConfig,
-        host: process.env.SSH_HOST_PROCESSOR,
-        'post-deploy' :
-            'npm install '+
-            '&& npx prisma generate ' +
-            '&& npm run build ' +
-            '&& pm2 reload ecosystem.config.js --env production --name image_processor',
+          ...sharedConfig,
+          host: process.env.SSH_HOST_PROCESSOR,
+          'pre-deploy': 'nvm install 18 && nvm use 18',
+          'post-deploy' :
+              'npm install '+
+              '&& npx prisma generate ' +
+              '&& npm run build ' +
+              '&& pm2 reload ecosystem.config.js --env production --name image_processor',
           // copy .env file to the server before starting pm2
           'pre-deploy-local': '' +
+              `ssh ${process.env.SSH_USER + '@' + process.env.SSH_HOST_PROCESSOR} \'mkdir -p /var/www/rarefy-scrapers/current' && ` +
               'scp -r .env.deploy ' + process.env.SSH_USER + '@' + process.env.SSH_HOST_PROCESSOR + ':' + process.env.DESTINATION + '/current/.env.deploy',
       }
   }
