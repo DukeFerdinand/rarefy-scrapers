@@ -9,9 +9,6 @@ const sharedConfig  = {
     ref  : 'origin/main',
     repo : process.env.GIT_REPO,
     path : process.env.DESTINATION,
-    // copy .env file to the server before starting pm2
-    'pre-deploy-local': '' +
-        'scp -r .env.deploy ' + process.env.SSH_USER + '@' + process.env.SSH_HOST + ':' + process.env.DESTINATION + '/current/.env.deploy',
 }
 
 module.exports = {
@@ -59,6 +56,9 @@ module.exports = {
           '&& npx prisma generate '+
           '&& npm run build '+
           '&& pm2 reload ecosystem.config.js --env production --name scraper',
+        // copy .env file to the server before starting pm2
+        'pre-deploy-local': '' +
+            'scp -r .env.deploy ' + process.env.SSH_USER + '@' + process.env.SSH_HOST_SCRAPER + ':' + process.env.DESTINATION + '/current/.env.deploy',
     },
       processor_production: {
         ...sharedConfig,
@@ -68,6 +68,9 @@ module.exports = {
             '&& npx prisma generate ' +
             '&& npm run build ' +
             '&& pm2 reload ecosystem.config.js --env production --name image_processor',
+          // copy .env file to the server before starting pm2
+          'pre-deploy-local': '' +
+              'scp -r .env.deploy ' + process.env.SSH_USER + '@' + process.env.SSH_HOST_PROCESSOR + ':' + process.env.DESTINATION + '/current/.env.deploy',
       }
   }
 };
