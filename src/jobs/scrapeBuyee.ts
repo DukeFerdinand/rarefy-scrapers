@@ -1,9 +1,10 @@
-import playwright from 'playwright-firefox'
+import * as cheerio from 'cheerio'
 
+import { SearchResult } from '@prisma/client'
 import {logger} from "../logger";
 import {BuyeeJob} from "../queue";
 
-const BASE_URL = "https://buyee.jp/item/search/query/{{term}}"
+const SEARCH_URL = "https://buyee.jp/item/search/query/{{term}}"
 
 enum Currency {
     USD = "USD",
@@ -22,61 +23,140 @@ interface BuyeeSearchResult {
     timeRemaining: string,
     bids: number,
 }
+export interface BuyeeItemDetails {
+    Quantity: string;
+    "Opening Price": string;
+    "Number of Bids": string;
+    "Opening Time　(JST)": string;
+    "Closing Time　(JST)": string;
+    "Current Time　(JST)": string;
+    "Auction ID": string;
+    "Item Condition": string;
+    "Shipping Paid By": string;
+
+    // the below are weirdly formatted, I'm ignoring them for now
+
+    // Early FinishIf this is set as "Yes", the seller can terminate the auction earlier than the ending time.The winner will be the highest bidder at the point of the auction is terminated.: string;
+    // Automatic ExtensionIf this is set as "Yes" and when there is higher bid placed within the 5 minutes  of the ending time, the originally set ending time will be extended 5 minutes.It'll be continuously extended everytime the highest bid is renewed.: string;
+    // Bidder Rating RestrictionIf this is set as "Yes", the seller sets the restrictions (based on the bidder's review score) of the bidders who can/cannot place bids.: string;
+}
+
+function buyeeDataToSearchResult(data: BuyeeItemDetails): void {
+    console.log(data)
+    // return {
+    //     title: data.title,
+    //     price: data.price,
+    //     currency: Currency.JPY,
+    //     link: data.link,
+    //     seller: data.seller,
+    //     timeRemaining: data.timeRemaining,
+    //     bids: data.bids,
+    // }
+}
+
+
+const formatBuyeeUrl = (term: BuyeeJob['terms'][number]) => {
+    let url = SEARCH_URL.replace("{{term}}", term.query)
+
+    // Add any url modifiers here
+    if (term.vinylOnly) {
+        url += "/category/22260"
+    }
+
+    // this is to avoid making them mad at us scraping their site :)
+    // BUYEE JUST GIVE ME AN API! :(
+    url += "?translationType=1&suggest=1"
+
+    return url
+}
 
 export const scrapeBuyee = async (terms: BuyeeJob['terms']) => {
     logger.info(`Buyee scraper: scraping ${terms.length} terms`);
 
-    const browser = await playwright.firefox.launch()
     for (const term of terms) {
-        logger.info(`Buyee scraper: scraping ${term.query}`);
-        const page = await browser.newPage()
+        logger.info(`Buyee scraper: scraping term ${term.query}`);
+        const searchResultsPage = formatBuyeeUrl(term)
 
-        let url = BASE_URL.replace("{{term}}", term.query)
+        logger.info(`Buyee scraper: fetching initial cards for term ${term.query}`);
+        // Get the HTML of the search results page
+        const html = await fetch(searchResultsPage, {
+            headers: {
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:91.0) Gecko/20100101 Firefox/91.0"
+            }
+        })
 
-        // Add any url modifiers here
-        if (term.vinylOnly) {
-            url += "/category/22260"
+        // Load it into cheerio
+        const $ = cheerio.load(await html.text())
+        // Get the cards
+        const items = $(".itemCard")
+
+        // Missing cards means error or no results, TODO: handle no results vs error
+        if (items.length === 0) {
+            logger.info(`Buyee scraper: no results for term ${term.query}`);
+            continue;
         }
 
-        console.log(url)
+        logger.info(`Buyee scraper: found ${items.length} results for term ${term.query}`);
 
-        url += "?translationType=1&suggest=1"
+        // Loop through the cards, making a request for each one to get the details from the auction page HTML
+        const results: BuyeeSearchResult[] = []
+        for (const item of items.toArray()) {
+            const $item = $(item)
 
-        await page.goto(url)
-        const items = await page.$$('.itemCard')
+            // Basic info from the card
+            const anchorTitle = $item.find(".itemCard__itemName a")
+            const auctionPage = anchorTitle.attr('href')
+            const title = anchorTitle.text()
 
-        if (items) {
-            logger.info(`Buyee scraper: found ${items.length} items for ${term.query}`);
-            const scrapedItems: BuyeeSearchResult[] = []
-            for (const item of items) {
-                const searchResult: BuyeeSearchResult = {
-                    currency: Currency.JPY,
-                } as BuyeeSearchResult
+            // Get the auction page HTML
+            const itemPage = await fetch(`https://buyee.jp${auctionPage}`, {
+                headers: {
+                    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:91.0) Gecko/20100101 Firefox/91.0"
+                }
+            });
 
-                const {title, href} = await item.$eval('.itemCard__itemName > a', (el) => {
-                    return {
-                        title: el.textContent?.trim() || "",
-                        href: el.getAttribute('href') || ''
-                    }
-                })
+            // Load it into cheerio
+            const $itemPage = cheerio.load(await itemPage.text())
+            const $itemDetailWrapper = $itemPage("#itemDetail_data").first()
+            const $itemDetails = $itemDetailWrapper.find("li")
 
-                const price = await item.$eval('.g-price', (el) => {
-                    return parseInt(el.textContent?.replace(/[^0-9]/g, "") || "0")
-                })
+            // Loop through the details and build an object
+            const itemDetails = {} as BuyeeItemDetails
+            $itemDetails.each((i, el) => {
+                const $el = $(el)
+                const label = $el.find('em').text().trim() as keyof BuyeeItemDetails
+                const value = $el.find('span').text()?.trim()
 
-                scrapedItems.push({
-                    ...searchResult,
-                    title,
-                    link: href,
-                    price,
-                })
+                if (label && value) {
+                    itemDetails[label] = value
+                } else {
+                    logger.warn(`Buyee scraper: found label without value: ${label}`)
+                }
+            })
+
+            // Rip all of the image urls from the page
+            const images: string[] = []
+            $itemPage("ul.slides").children("li").each((i, el) => {
+                images.push($(el).attr('data-thumb') || '')
+            })
+
+            for (const image of images) {
+                logger.info(`Buyee scraper: downloading and uploading image ${image}`)
+                // TODO: See if storing to disk is better than keeping potentially large images in memory
+                const imageBuffer = await fetch(image).then(res => res.arrayBuffer())
+
             }
 
-            console.log(scrapedItems)
-        } else {
-            logger.info(`Buyee scraper: found no items for ${term.query}`);
-        }
-        await page.close()
-    }
+            // TODO: Store images in S3 and return the S3 urls instead to avoid being blocked by buyee
 
+            const data = {
+                title,
+                auctionPage,
+                itemDetails,
+                images
+            }
+
+            buyeeDataToSearchResult(itemDetails)
+        }
+    }
 }

@@ -31,13 +31,13 @@ model MachineUser {
   allowedIps            String[]
   token                 String                  @unique
   AccessToken           AccessToken[]
-  MachineUserPermission MachineUserPermission[]
+  MachineUserPermission MachineUserPermission[] @relation("MachineUserToMachineUserPermission")
 }
 
 model MachineUserPermission {
   id          String        @id
   permission  Permission
-  MachineUser MachineUser[]
+  MachineUser MachineUser[] @relation("MachineUserToMachineUserPermission")
 }
 
 model SavedSearch {
@@ -54,13 +54,14 @@ model SavedSearch {
 
 model SearchResult {
   id          String      @id
-  image       String
   url         String
   price       String
   endDate     DateTime
   foundAt     DateTime    @default(now())
   updatedAt   DateTime
   searchId    String
+  startDate   DateTime?
+  image       String[]
   SavedSearch SavedSearch @relation(fields: [searchId], references: [id])
 }
 
