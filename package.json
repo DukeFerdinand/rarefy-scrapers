@@ -8,7 +8,8 @@
 		"dev": "nodemon",
 		"build": "tsc",
 		"deploy": "npx pm2 deploy production",
-		"test": "echo \"Error: no test specified\" && exit 1"
+		"test": "echo \"Error: no test specified\" && exit 1",
+		"cron": "npx ts-node entrypoints/cron.ts"
 	},
 	"author": "",
 	"license": "ISC",

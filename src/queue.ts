@@ -34,13 +34,7 @@ const jobCreatorConfig = {
     isWorker: false,
 }
 
-export const scrapeJobCreator = new Queue(SCRAPER_QUEUE, {
-    removeOnSuccess: true,
-    redis: {
-        url: process.env.REDIS_URL,
-    },
-    isWorker: false,
-});
+export const crawlerJobCreator = new Queue(SCRAPER_QUEUE, jobCreatorConfig)
 
 export const processJobCreator = new Queue(PROCESSOR_QUEUE, jobCreatorConfig)
 
@@ -50,6 +44,6 @@ const jobConsumerConfig = {
     }
 }
 
-export const scrapeJobConsumer = new Queue(SCRAPER_QUEUE, jobConsumerConfig);
+export const crawlerJobConsumer = new Queue(SCRAPER_QUEUE, jobConsumerConfig);
 
 export const processJobConsumer = new Queue(PROCESSOR_QUEUE, jobConsumerConfig)

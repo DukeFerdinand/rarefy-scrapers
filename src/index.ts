@@ -4,8 +4,9 @@ import {config} from 'dotenv';
 
 import {logger} from "./logger";
 import {setupWorkers} from "./workers/setup";
-import {BuyeeJob, scrapeJobCreator, ScrapeTarget} from "./queue";
+import {BuyeeJob, crawlerJobCreator, ScrapeTarget} from "./queue";
 import {getSearchTerms} from "./db/getTerms";
+import {verifyAuthToken} from "./utils/verifyAuthToken";
 
 config();
 
@@ -39,27 +40,15 @@ app.use(async (req, res, next) => {
 		return res.status(401).send('Unauthorized');
 	}
 
-	const storedToken = await prisma.accessToken.findUnique({
-		where: {
-			token
-		},
-		include: {
-			MachineUser: {
-				select: {
-					commonName: true
-				}
-			}
-		}
-	})
+	const machineUser = await verifyAuthToken(token);
 
-
-	if (!storedToken || storedToken.revoked) {
-		logger.info(`${ip} ${req.method} - ${req.url} with revoked or missing token ${token}`);
+	if (!machineUser) {
+		logger.info(`${ip} ${req.method} - ${req.url} with INVALID TOKEN`);
 
 		return res.status(401).send('Unauthorized');
 	}
 
-	logger.info(`${ip} ${req.method} - ${req.url} with token ${token}`);
+	logger.info(`${ip} ${req.method} / ${machineUser} - ${req.url} with token ${token}`);
 
 	next();
 });
@@ -88,7 +77,7 @@ app.post('/buyee', async function (req, res) {
 	const terms = await getSearchTerms()
 	if (terms.length !== 0) {
 		for (const term of terms) {
-			const job = scrapeJobCreator.createJob<BuyeeJob>({
+			const job = crawlerJobCreator.createJob<BuyeeJob>({
 				jobType: ScrapeTarget.BUYEE,
 				terms: [term]
 			});

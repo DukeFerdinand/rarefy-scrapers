@@ -4,9 +4,9 @@ import {logger} from "../logger";
 const workerCount = process.env.WORKER_COUNT_PER_JOB || 1
 
 export const setupWorkers = () => {
-    for (const workerType of ['scrape', 'process']) {
+    for (const workerType of ['crawler', 'processor']) {
         logger.info(`Setting up ${workerCount} ${workerType} worker(s)`);
-        const fileName = __dirname + '/' + (workerType === 'scrape' ? 'worker.js' : 'process.js')
+        const fileName = __dirname + '/' + workerType + '.js'
 
         let count = 0;
         while (count < workerCount) {

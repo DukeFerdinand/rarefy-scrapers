@@ -1,14 +1,14 @@
 import { isMainThread, parentPort } from "worker_threads";
 import type { DoneCallback, Job } from "bee-queue";
 
-import { scrapeJobConsumer, ScrapeTarget, ScraperJob } from "../queue";
+import { crawlerJobConsumer, ScrapeTarget, ScraperJob } from "../queue";
 import {scrapeBuyee} from "../jobs/scrapeBuyee";
 
 
 // Run the queue in the worker thread only so we can export from here if required
 if (!isMainThread) {
     parentPort?.postMessage(`Worker started`);
-    scrapeJobConsumer.process(function (job: Job<ScraperJob>, done: DoneCallback<unknown>) {
+    crawlerJobConsumer.process(function (job: Job<ScraperJob>, done: DoneCallback<unknown>) {
         parentPort?.postMessage("Handling job")
 
         const startTimestamp = Date.now();

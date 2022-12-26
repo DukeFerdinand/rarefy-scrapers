@@ -1,7 +1,7 @@
 {
-  "watch": ["src"],
-  "ignore": ["src/**/*.test.ts"],
+  "watch": ["./"],
+  "ignore": ["src/**/*.test.ts", "dist/"],
   "ext": "ts,mjs,js,json,graphql",
-  "exec": "npx tsc -b --verbose && node ./dist/index.js",
+  "exec": "npx tsc -b --verbose && node ./dist/entrypoints/main.js",
   "legacyWatch": true
 }
