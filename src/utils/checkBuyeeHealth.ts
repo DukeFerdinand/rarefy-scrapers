@@ -1,10 +1,13 @@
 import { redisClient } from "../db/cache";
 
 export async function checkBuyeeHealth(): Promise<boolean> {
+  let health: boolean;
+
+  await redisClient.connect();
   const cachedHealth = await redisClient.get("buyeeHealth");
+
   if (cachedHealth) {
-	  console.log('cache hit');
-    return JSON.parse(cachedHealth);
+    health = JSON.parse(cachedHealth);
   } else {
     console.log('cache not hit');
     const isOkay = await fetch("https://buyee.jp", {
@@ -15,7 +18,6 @@ export async function checkBuyeeHealth(): Promise<boolean> {
     })
       .then((html) => html.text())
       .then(async (html) => {
-
         return !html.includes("Site Maintenance");
       });
 
@@ -23,6 +25,10 @@ export async function checkBuyeeHealth(): Promise<boolean> {
 	// expire after 5 minutes
     await redisClient.expire('buyeeHealth', 60 * 5);
 
-	return isOkay;
+    health = isOkay;
   }
+
+  await redisClient.disconnect();
+
+  return health;
 }

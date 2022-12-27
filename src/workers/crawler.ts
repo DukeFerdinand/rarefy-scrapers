@@ -1,23 +1,21 @@
 import {Job} from "bee-queue";
 
 import {crawlerJobConsumer} from '../queue'
-import {checkBuyeeHealth} from "../utils/checkBuyeeHealth";
 import {logger} from "../logger";
 import {parentPort} from "worker_threads";
 import {CrawlerJob} from "../functions/createCrawlerJobs";
+import {scrapeBuyee} from "../jobs/scrapeBuyee";
 
 parentPort?.postMessage("starting crawler worker");
 
 crawlerJobConsumer.process(async (job: Job<CrawlerJob>) => {
-	const {query, id} = job.data.query
-
-	if (!await checkBuyeeHealth()) {
-		logger.info(`Buyee is down, skipping job ${id}`);
-		job.emit("failed", new Error("Buyee is down"));
-		return;
-	}
+	console.log("Processing job", job.id);
+	const {id} = job.data.query;
 
 	logger.info(`Processing job ${job.id} for term ${id}`);
 
+	await scrapeBuyee(job.data.query);
+
 	job.emit('success', 'TEMP RESPONSE! :^)');
+	parentPort?.postMessage("finished job " + job.id);
 })
