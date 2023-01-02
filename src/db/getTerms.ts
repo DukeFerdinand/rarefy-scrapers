@@ -1,11 +1,11 @@
-import {prisma} from "./getPrisma";
+import {getPrisma} from "./getPrisma";
 
 export const getSearchTerms = async () => {
-    return await prisma.savedSearch.findMany({});
+    return await getPrisma().savedSearch.findMany({});
 }
 
 export const getResultToProcess = async (id: string) => {
-    return await prisma.searchResult.findUnique({
+    return await getPrisma().searchResult.findUnique({
         where: {
             id,
         }

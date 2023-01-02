@@ -53,16 +53,20 @@ model SavedSearch {
 }
 
 model SearchResult {
-  id          String      @id
-  url         String
-  price       String
-  endDate     DateTime
-  foundAt     DateTime    @default(now())
-  updatedAt   DateTime
-  searchId    String
-  startDate   DateTime?
-  image       String[]
-  SavedSearch SavedSearch @relation(fields: [searchId], references: [id])
+  id            String      @id
+  url           String      @unique
+  endDate       DateTime
+  foundAt       DateTime    @default(now())
+  updatedAt     DateTime
+  searchId      String
+  startDate     DateTime
+  image         String[]
+  bids          Int
+  currentPrice  String
+  startingPrice String
+  title         String
+  endPrice      String?
+  SavedSearch   SavedSearch @relation(fields: [searchId], references: [id])
 }
 
 model User {
@@ -71,10 +75,16 @@ model User {
   password    String
   joined      DateTime      @default(now())
   username    String        @unique
+  role        Role[]        @default([User])
   SavedSearch SavedSearch[]
 }
 
 enum Permission {
   READ
   WRITE
+}
+
+enum Role {
+  User
+  Admin
 }

@@ -1,7 +1,7 @@
-import {prisma} from "../db/getPrisma";
+import {getPrisma} from "../db/getPrisma";
 
 export async function verifyAuthToken(token: string): Promise<string | undefined> {
-	const storedToken = await prisma.accessToken.findUnique({
+	const storedToken = await getPrisma().accessToken.findUnique({
 		where: {
 			token,
 		},

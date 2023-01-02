@@ -12,7 +12,7 @@ const defaultHeaders = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:91.0) Gecko/20100101 Firefox/91.0"
 }
 
-interface BuyeeSearchResult {
+export interface BuyeeSearchResult {
     title: string;
     currentPrice: string;
     startingPrice: string;
@@ -58,7 +58,7 @@ const formatBuyeeUrl = (term: BuyeeJob['terms'][number]) => {
     return url
 }
 
-export const scrapeBuyee = async (term: CrawlerJob['query']) => {
+export const scrapeBuyee = async (term: CrawlerJob['query']): Promise<BuyeeSearchResult[]> => {
     parentPort?.postMessage(`scraping ${term.query}`)
     const searchResultsPage = formatBuyeeUrl(term)
 
@@ -78,7 +78,7 @@ export const scrapeBuyee = async (term: CrawlerJob['query']) => {
     // ===================================================
     if (items.length === 0) {
         parentPort?.postMessage(`no results for ${term.query}`)
-        return
+        return []
     }
 
     parentPort?.postMessage(`found ${items.length} results for term ${term.query}`);
@@ -100,6 +100,7 @@ export const scrapeBuyee = async (term: CrawlerJob['query']) => {
 
         // Get the auction page HTML
         // ===================================================
+        logger.info(`Visiting -> ${auctionPage}`)
         const fullUrl = `https://buyee.jp${auctionPage}`;
         const itemPage = await fetch(`https://buyee.jp${auctionPage}`, {
             headers: defaultHeaders
@@ -125,20 +126,6 @@ export const scrapeBuyee = async (term: CrawlerJob['query']) => {
                 logger.warn(`Buyee scraper: found label without value: ${label}`)
             }
         })
-
-        // Use details from loop to build proper return
-        // ===================================================
-        const result: BuyeeSearchResult = {
-            title,
-            currentPrice,
-            startingPrice: itemDetails["Opening Price"].split('  ')[0],
-            startDate: new Date(itemDetails["Opening Time　(JST)"]),
-            endDate: new Date(itemDetails["Closing Time　(JST)"]),
-            updatedAt: new Date(itemDetails["Current Time　(JST)"]),
-            url: fullUrl,
-            bids: Number(itemDetails["Number of Bids"]),
-            images: []
-        }
 
         // Rip all the image urls from the page
         // ===================================================
@@ -168,13 +155,24 @@ export const scrapeBuyee = async (term: CrawlerJob['query']) => {
 
         const imageUrl = `https://rarefy-cdn.us-east-1.linodeobjects.com/${fileName}`
 
-        // Attach image url and return as part of results set
+        // Use details from loop to build proper return
         // ===================================================
-        result.images.push(imageUrl)
+        const result: BuyeeSearchResult = {
+            title,
+            currentPrice,
+            startingPrice: itemDetails["Opening Price"].split('  ')[0],
+            startDate: new Date(itemDetails["Opening Time　(JST)"]),
+            endDate: new Date(itemDetails["Closing Time　(JST)"]),
+            updatedAt: new Date(itemDetails["Current Time　(JST)"]),
+            url: fullUrl,
+            bids: Number(itemDetails["Number of Bids"]),
+            images: [imageUrl]
+        }
 
         results.push(result)
     }
 
-    logger.info(`Finished ${term.query}`)
+    logger.info(`Finished Scraping -> ${term.query}`)
+
     return results
 }
