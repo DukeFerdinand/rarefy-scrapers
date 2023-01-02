@@ -5,8 +5,14 @@ import {logger} from "../logger";
 import {parentPort} from "worker_threads";
 import {CrawlerJob} from "../functions/createCrawlerJobs";
 import {scrapeBuyee} from "../jobs/scrapeBuyee";
+import {getS3Client} from "../db/s3";
 
 parentPort?.postMessage("starting crawler worker");
+
+crawlerJobConsumer.on("error", (e) => {
+	logger.error(e)
+	parentPort?.emit("messageerror", e)
+})
 
 crawlerJobConsumer.process(async (job: Job<CrawlerJob>) => {
 	console.log("Processing job", job.id);

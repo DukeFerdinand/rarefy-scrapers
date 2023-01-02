@@ -4,28 +4,29 @@ import * as cheerio from 'cheerio'
 import {logger} from "../logger";
 import {BuyeeJob} from "../queue";
 import {CrawlerJob} from "../functions/createCrawlerJobs";
+import {getS3Client} from "../db/s3";
 
 const SEARCH_URL = "https://buyee.jp/item/search/query/{{term}}"
 
-enum Currency {
-    USD = "USD",
-    EUR = "EUR",
-    GBP = "GBP",
-    JPY = "JPY",
-    BRL = "BRL",
+const defaultHeaders = {
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:91.0) Gecko/20100101 Firefox/91.0"
 }
 
 interface BuyeeSearchResult {
-    title: string,
-    price: number, // Yen
-    currency: Currency,
-    link: string,
-    seller: string,
-    timeRemaining: string,
-    bids: number,
+    title: string;
+    currentPrice: string;
+    startingPrice: string;
+    startDate: Date;
+    endDate: Date;
+    updatedAt: Date;
+    url: string;
+    bids: number;
+    images: string[]
 }
+
 export interface BuyeeItemDetails {
     Quantity: string;
+    // This has a TON of white space for some reason...
     "Opening Price": string;
     "Number of Bids": string;
     "Opening Time　(JST)": string;
@@ -41,20 +42,6 @@ export interface BuyeeItemDetails {
     // Automatic ExtensionIf this is set as "Yes" and when there is higher bid placed within the 5 minutes  of the ending time, the originally set ending time will be extended 5 minutes.It'll be continuously extended everytime the highest bid is renewed.: string;
     // Bidder Rating RestrictionIf this is set as "Yes", the seller sets the restrictions (based on the bidder's review score) of the bidders who can/cannot place bids.: string;
 }
-
-function buyeeDataToSearchResult(data: BuyeeItemDetails): void {
-    // console.log(data)
-    // return {
-    //     title: data.title,
-    //     price: data.price,
-    //     currency: Currency.JPY,
-    //     link: data.link,
-    //     seller: data.seller,
-    //     timeRemaining: data.timeRemaining,
-    //     bids: data.bids,
-    // }
-}
-
 
 const formatBuyeeUrl = (term: BuyeeJob['terms'][number]) => {
     let url = SEARCH_URL.replace("{{term}}", term.query)
@@ -78,9 +65,7 @@ export const scrapeBuyee = async (term: CrawlerJob['query']) => {
     // Get the HTML of the search results page
     // ===================================================
     const html = await fetch(searchResultsPage, {
-        headers: {
-            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:91.0) Gecko/20100101 Firefox/91.0"
-        }
+        headers: defaultHeaders
     })
 
     // Load it into cheerio
@@ -108,15 +93,16 @@ export const scrapeBuyee = async (term: CrawlerJob['query']) => {
         // Basic info from the card
         // ===================================================
         const anchorTitle = $item.find(".itemCard__itemName a")
+        // This will be used to gather further details
         const auctionPage = anchorTitle.attr('href')
-        const title = anchorTitle.text()
+        const title = anchorTitle.text().trim()
+        const currentPrice = $item.find(".g-price__outer span.g-price").text().trim()
 
         // Get the auction page HTML
         // ===================================================
+        const fullUrl = `https://buyee.jp${auctionPage}`;
         const itemPage = await fetch(`https://buyee.jp${auctionPage}`, {
-            headers: {
-                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:91.0) Gecko/20100101 Firefox/91.0"
-            }
+            headers: defaultHeaders
         });
 
         // Load it into cheerio
@@ -140,31 +126,55 @@ export const scrapeBuyee = async (term: CrawlerJob['query']) => {
             }
         })
 
-        // Rip all of the image urls from the page
+        // Use details from loop to build proper return
+        // ===================================================
+        const result: BuyeeSearchResult = {
+            title,
+            currentPrice,
+            startingPrice: itemDetails["Opening Price"].split('  ')[0],
+            startDate: new Date(itemDetails["Opening Time　(JST)"]),
+            endDate: new Date(itemDetails["Closing Time　(JST)"]),
+            updatedAt: new Date(itemDetails["Current Time　(JST)"]),
+            url: fullUrl,
+            bids: Number(itemDetails["Number of Bids"]),
+            images: []
+        }
+
+        // Rip all the image urls from the page
         // ===================================================
         const images: string[] = []
         $itemPage("ul.slides").children("li").each((i, el) => {
             images.push($(el).attr('data-thumb') || '')
         })
 
-        buyeeDataToSearchResult(itemDetails)
 
-        // TODO: Save the scraped data to db before sending to queue
-        // await processJobCreator.createJob({
-        //     jobType: JobType.FILE_PROCESS,
-        //     files: images,
-        //     dbID: term.dbID,
-        // })
+        // Get image data and upload to S3
+        // ===================================================
+        // We may push more images later, but for now it's easier to process one
+        const firstImageUrl = images[0]
+        const fileName = firstImageUrl.split('/users/')[1].split('/')[1]
 
-        // TODO: Store images in S3 and return the S3 urls instead to avoid being blocked by buyee
+        const imageData = await fetch(firstImageUrl, {
+            headers: defaultHeaders
+        }).then(res => res.arrayBuffer())
 
-        // const data = {
-        //     title,
-        //     auctionPage,
-        //     itemDetails,
-        //     images
-        // }
+        const s3Client = getS3Client()
+        await s3Client.putObject({
+            Bucket: 'rarefy-cdn',
+            Body: Buffer.from(imageData),
+            Key: fileName,
+            ACL: 'public-read'
+        })
 
-        console.log("TODO: save to db")
+        const imageUrl = `https://rarefy-cdn.us-east-1.linodeobjects.com/${fileName}`
+
+        // Attach image url and return as part of results set
+        // ===================================================
+        result.images.push(imageUrl)
+
+        results.push(result)
     }
+
+    logger.info(`Finished ${term.query}`)
+    return results
 }

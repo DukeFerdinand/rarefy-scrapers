@@ -1,4 +1,4 @@
-import AWS from 'aws-sdk';
+import {S3} from '@aws-sdk/client-s3'
 
 
 export const getS3Client = () => {
@@ -6,12 +6,12 @@ export const getS3Client = () => {
         throw new Error('Missing AWS credentials');
     }
 
-    return new AWS.S3({
+    return new S3({
         endpoint: 'https://us-east-1.linodeobjects.com',
         region: 'us-east-1',
         credentials: {
             accessKeyId: process.env.AWS_ACCESS_TOKEN,
             secretAccessKey: process.env.AWS_ACCESS_SECRET
         }
-    });
+    })
 }

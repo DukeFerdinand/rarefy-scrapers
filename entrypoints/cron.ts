@@ -2,6 +2,7 @@ import {config} from "dotenv";
 import {crawlerJobCreator} from "../src/queue";
 import {createCrawlerJobs} from "../src/functions/createCrawlerJobs";
 import {checkBuyeeHealth} from "../src/utils/checkBuyeeHealth";
+import {logger} from "../src/logger";
 
 // env will be populated by GitHub Actions in "prod" environment
 config()
@@ -21,6 +22,7 @@ async function main() {
 	console.log(`- Creating ${crawlerJobs.length} crawler jobs`);
 
 	for (const job of crawlerJobs) {
+		logger.info("Creating job")
 		await crawlerJobCreator.createJob(job).save()
 	}
 
