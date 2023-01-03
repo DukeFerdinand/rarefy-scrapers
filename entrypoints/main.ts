@@ -9,7 +9,7 @@ const main = async () => {
 	logger.info(`Creating redis connection`);
 	await redisClient.connect()
 
-	logger.info("Calling setupWorkers()");
+	logger.info("Setting up workers");
 	setupWorkers();
 }
 

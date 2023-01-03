@@ -1,44 +1,54 @@
-import {Job} from "bee-queue";
 import {parentPort} from "worker_threads";
+import Queue from "bull";
 
-import {crawlerJobConsumer} from '../queue'
-import {logger} from "../logger";
 import {CrawlerJob} from "../functions/createCrawlerJobs";
-import {BuyeeSearchResult, scrapeBuyee} from "../jobs/scrapeBuyee";
+import {scrapeBuyee} from "../jobs/scrapeBuyee";
 import {ApiClient} from "../api/client";
 
-
-export const initWorker = (concurrency: number = 3) => {
-	const apiClient = new ApiClient(
-		process.env.API_URL,
-		{
-			headers: {
-				'Authorization': `Bearer ${process.env.API_TOKEN}`
-			}
+const crawlerQueue = new Queue<CrawlerJob>('crawler queue', process.env.REDIS_URL!)
+const apiClient = new ApiClient(
+	process.env.API_URL,
+	{
+		headers: {
+			'Authorization': `Bearer ${process.env.API_KEY}`
 		}
-	)
-	crawlerJobConsumer.on("error", (e) => {
-		logger.error(e)
-		parentPort?.emit("messageerror", e)
+	}
+)
+
+async function worker() {
+	parentPort?.postMessage('setting up bull')
+
+	crawlerQueue.process(async (job, done) => {
+		try {
+			const jobId = job.id
+			const savedSearch = job.data.query
+			parentPort?.postMessage(`processing job ${jobId}, query: ${savedSearch.query}`)
+
+			const results = await scrapeBuyee(savedSearch);
+
+			await apiClient.post('/api/search_results', {
+				searchId: savedSearch.id,
+				results
+			})
+
+			parentPort?.postMessage(`job ${jobId} finished, ${results.length} results`)
+
+			done(null, results)
+		} catch (e) {
+			console.error(e)
+			parentPort?.emit('error', e)
+			done(e as Error)
+		}
 	})
 
-	crawlerJobConsumer.on("succeeded", (res: Job<BuyeeSearchResult[]>) => {
-		console.log(res)
+	crawlerQueue.on('error', (error) => {
+		parentPort?.emit('error', error)
 	})
 
-	crawlerJobConsumer.process(concurrency, async (job: Job<CrawlerJob>) => {
-		const {query, id} = job.data.query;
-		logger.info(`Processing job ${job.id} for term ${query}`);
-
-		const results = await scrapeBuyee(job.data.query);
-
-		logger.info(`Processing ${results.length} results`)
-
-		await apiClient.post(`/api/search_results`, {
-			searchId: id,
-			data: results,
-		})
-
-		job.emit('succeeded', results)
-	})
+	parentPort?.postMessage('worker ready')
 }
+
+worker().catch((e) => {
+	parentPort?.emit('error', e)
+	process.exit(1)
+})
