@@ -1,5 +1,6 @@
 import {parentPort} from 'worker_threads'
 import * as cheerio from 'cheerio'
+import axios from "axios";
 
 import {logger} from "../logger";
 import {BuyeeJob} from "../queue";
@@ -59,18 +60,21 @@ const formatBuyeeUrl = (term: BuyeeJob['terms'][number]) => {
 }
 
 export const scrapeBuyee = async (term: CrawlerJob['query']): Promise<BuyeeSearchResult[]> => {
+    const apiClient = axios.create({
+        headers: defaultHeaders
+    })
     parentPort?.postMessage(`scraping ${term.query}`)
     const searchResultsPage = formatBuyeeUrl(term)
 
     // Get the HTML of the search results page
     // ===================================================
-    const html = await fetch(searchResultsPage, {
+    const html = await apiClient.get<string>(searchResultsPage, {
         headers: defaultHeaders
-    })
+    }).then(res => res.data)
 
     // Load it into cheerio
     // ===================================================
-    const $ = cheerio.load(await html.text())
+    const $ = cheerio.load(html)
     // Get the cards
     const items = $(".itemCard")
 
@@ -102,13 +106,13 @@ export const scrapeBuyee = async (term: CrawlerJob['query']): Promise<BuyeeSearc
         // ===================================================
         logger.info(`Visiting -> ${auctionPage}`)
         const fullUrl = `https://buyee.jp${auctionPage}`;
-        const itemPage = await fetch(`https://buyee.jp${auctionPage}`, {
+        const itemPage = await apiClient.get<string>(`https://buyee.jp${auctionPage}`, {
             headers: defaultHeaders
-        });
+        }).then(res => res.data)
 
         // Load it into cheerio
         // ===================================================
-        const $itemPage = cheerio.load(await itemPage.text())
+        const $itemPage = cheerio.load(itemPage)
         const $itemDetailWrapper = $itemPage("#itemDetail_data").first()
         const $itemDetails = $itemDetailWrapper.find("li")
 
@@ -141,9 +145,10 @@ export const scrapeBuyee = async (term: CrawlerJob['query']): Promise<BuyeeSearc
         const firstImageUrl = images[0]
         const fileName = firstImageUrl.split('/users/')[1].split('/')[1]
 
-        const imageData = await fetch(firstImageUrl, {
-            headers: defaultHeaders
-        }).then(res => res.arrayBuffer())
+        const imageData = await axios.get<ArrayBuffer>(firstImageUrl, {
+            headers: defaultHeaders,
+            responseType: 'arraybuffer'
+        }).then(res => res.data)
 
         const s3Client = getS3Client()
         await s3Client.putObject({
