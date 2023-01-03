@@ -6,4 +6,5 @@ dist
 .DS_Store
 volumes/data/*
 !volumes/data/.gitkeep
+.idea
 

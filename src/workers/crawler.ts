@@ -1,15 +1,22 @@
 import {Job} from "bee-queue";
 import {parentPort} from "worker_threads";
-import uuid from 'uuid'
 
 import {crawlerJobConsumer} from '../queue'
 import {logger} from "../logger";
 import {CrawlerJob} from "../functions/createCrawlerJobs";
-import {BuyeeItemDetails, BuyeeSearchResult, scrapeBuyee} from "../jobs/scrapeBuyee";
-import {getPrisma} from "../db/getPrisma";
+import {BuyeeSearchResult, scrapeBuyee} from "../jobs/scrapeBuyee";
+import {ApiClient} from "../api/client";
 
 
 export const initWorker = (concurrency: number = 3) => {
+	const apiClient = new ApiClient(
+		process.env.API_URL,
+		{
+			headers: {
+				'Authorization': `Bearer ${process.env.API_TOKEN}`
+			}
+		}
+	)
 	crawlerJobConsumer.on("error", (e) => {
 		logger.error(e)
 		parentPort?.emit("messageerror", e)
@@ -27,44 +34,10 @@ export const initWorker = (concurrency: number = 3) => {
 
 		logger.info(`Processing ${results.length} results`)
 
-		const prisma = getPrisma()
-
-		await prisma.searchResult.create({
-			data: {
-				id: uuid.v4(),
-				...results[0],
-				searchId: id
-			}
+		await apiClient.post(`/api/search_results`, {
+			searchId: id,
+			data: results,
 		})
-
-		logger.warn("WROTE ONE TO DB!")
-
-		// const res = await getPrisma().searchResult.createMany({
-		// 	skipDuplicates: true,
-		// 	data: results.map(r => ({
-		// 		...r,
-		// 		id: uuid.v4(),
-		// 		searchId: id
-		// 	}))
-		// })
-
-		// for (const result of results) {
-		// 	logger.info("Is the loop even running?")
-		// 	const prismaResult = await prisma.searchResult.upsert({
-		// 		where: {
-		// 			url: result.url
-		// 		},
-		// 		create: {
-		// 			...result,
-		// 			id: uuid.v4(),
-		// 			searchId: id
-		// 		},
-		// 		update: {
-		// 			currentPrice: result.currentPrice,
-		// 			updatedAt: result.updatedAt
-		// 		}
-		// 	})
-		// }
 
 		job.emit('succeeded', results)
 	})
